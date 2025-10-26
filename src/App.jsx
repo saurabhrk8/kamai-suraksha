@@ -1,123 +1,60 @@
+// src/App.jsx - FINAL CLEAN AUTH VERSION (v1.30)
+
 import React, { useState, useEffect, useCallback } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 
-// Components
+// 🛑 CRITICAL FIX: Remove Amplify/Auth imports.
+// Now importing core auth functions from the new config file.
+import { 
+    getLoginUrl, 
+    logout, 
+    getValidAccessToken as authGetValidAccessToken, // Aliasing to avoid conflict
+    exchangeCodeForTokens as authExchangeCodeForTokens, // Aliasing
+    refreshAccessToken as authRefreshAccessToken // Aliasing
+} from './config/auth.js';
+
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// 💡 DEPLOYMENT VERIFICATION: NEW STAMP
+const VERSION_STAMP = 'v1.30_RUNTIME_FINAL_CLEAN_AUTH'; 
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// Components (No Change)
 import DashboardPage from "./components/DashboardPage.jsx";
 import OnboardingForm from "./components/OnboardingForm.jsx";
 import AdminDashboard from "./components/AdminDashboardPage.jsx";
 import PartnerPage from "./components/NBFC_PartnerDashboard.jsx";
 import MyApplicationsPage from "./components/MyApplicationsPage.jsx";
 import LogoutCleanup from "./components/LogoutCleanup.jsx";
+import Callback from "./pages/Callback.jsx";
 
-// ===============================================
-// 🛑 CRITICAL: API and Cognito Setup 🛑
-// ===============================================
-const API_BASE_URL = 'https://jrzuzhs5t8.execute-api.eu-west-2.amazonaws.com/prod/v1';
+
+// --- Configuration Constants (Simplified) ---
+// Remove all old Amplify config, only API endpoints remain.
 const API_BASE_URL1 = 'https://jrzuzhs5t8.execute-api.eu-west-2.amazonaws.com/prod';
-// Endpoint for code exchange + data save (NEW USER ONLY) - NO AUTHORIZATION HEADER
-const TOKEN_EXCHANGE_ENDPOINT = `${API_BASE_URL}/auth/callback`; 
-// Endpoint for GET (read data) and POST (update existing data) - REQUIRES AUTHORIZATION HEADER
 const USER_DATA_ENDPOINT = `${API_BASE_URL1}/userdata`; 
-// 🌟 ENDPOINT: Secured by Cognito Authorizer for POST (Save) and GET (History)
 const LOAN_APPLICATION_ENDPOINT = `${API_BASE_URL1}/loanapplication`; 
 
-const CLIENT_ID_PUBLIC = "nrck33p87u8mhi68nmjenk8g1";
-const COGNITO_DOMAIN = "https://eu-west-2xbm29elke.auth.eu-west-2.amazoncognito.com";
-const REDIRECT_URI = window.location.origin;
-
 const INITIAL_ONBOARDING_DATA = {
-    // ... existing fields
     full_name: '', age: '', phone_number: '', email_id: '',
     dob: '', gender: '', address: '', city: '',
     aadhaar_number: '', pan_number: '', gig_platform: [],
     work_type: '', work_tenure_months: '', monthly_income: '',
     bank_account_linked: '',
     worker_id: '',
-    // Default value for the admin field
     admin: false
 };
 
 // ===============================================
-// 🔑 UTILITY FUNCTIONS (Unchanged)
+// 🔑 UTILITY FUNCTIONS (Simplified/Removed)
 // ===============================================
-const decodeToken = (token) => {
-    if (!token) return null;
-    try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        return JSON.parse(jsonPayload);
-    } catch (e) {
-        console.error("Failed to decode token:", e);
-        return null;
-    }
-};
-
-const isTokenExpired = (token) => {
-    const payload = decodeToken(token);
-    if (!payload || !payload.exp) return true; 
-    const expirationTimeInSeconds = payload.exp * 1000;
-    const currentTimeInSeconds = Date.now(); 
-    return currentTimeInSeconds > expirationTimeInSeconds - 60000;
-};
-
-const refreshAccessToken = async (refreshToken, setSessionTokens) => {
-    console.log("Attempting to refresh Access Token...");
-    
-    try {
-        const refreshResponse = await fetch(`${COGNITO_DOMAIN}/oauth2/token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                client_id: CLIENT_ID_PUBLIC,
-                refresh_token: refreshToken,
-            }).toString(),
-        });
-
-        if (!refreshResponse.ok) throw new Error(`Token refresh failed: ${refreshResponse.status}.`);
-
-        const newTokens = await refreshResponse.json();
-        localStorage.setItem('access_token', newTokens.access_token);
-        if (newTokens.id_token) localStorage.setItem('id_token', newTokens.id_token);
-
-        setSessionTokens(prev => ({
-            ...prev,
-            id_token: newTokens.id_token || prev.id_token,
-            access_token: newTokens.access_token,
-        }));
-        return newTokens.access_token;
-        
-    } catch (error) {
-        console.error("Critical Refresh Error:", error.message);
-        throw error;
-    }
-};
-
-const performCognitoRedirect = (clientId, cognitoDomain, redirectUri) => {
-    sessionStorage.removeItem('exchangeAttempted'); 
-    sessionStorage.removeItem('auth_code_pending'); 
-    
-    const authUrl = `${cognitoDomain}/oauth2/authorize?` + new URLSearchParams({
-        response_type: 'code',
-        client_id: clientId, 
-        redirect_uri: redirectUri,
-        scope: 'openid email phone', 
-        state: 'some_random_state_value' 
-    }).toString();
-    
-    console.log("Initiating External Redirect:", authUrl);
-    window.location.replace(authUrl); 
-};
-
+// decodeToken, isTokenExpired, and refreshAccessToken are now in auth.js.
 
 // --- Main Application Component ---
 export default function App() {
     const navigate = useNavigate();
     
-    // 1. STATE INITIALIZATION
+    // 1. STATE INITIALIZATION (unchanged)
     const initialAccessToken = localStorage.getItem('access_token');
     const initialRefreshToken = localStorage.getItem('refresh_token');
     const hasInitialTokens = !!(initialAccessToken && initialRefreshToken);
@@ -132,21 +69,27 @@ export default function App() {
     }); 
     const [authError, setAuthError] = useState(null);
     const [exchangeAttempted, setExchangeAttempted] = useState(false); 
-    const [applications, setApplications] = useState([]); // State to hold application history
+    const [applications, setApplications] = useState([]); 
     const [onboardingData, setOnboardingData] = useState(INITIAL_ONBOARDING_DATA);
     const [userScore, setUserScore] = useState(0);
     const [isAdmin, setIsAdmin] = useState(false);
 
 
-    // LOGOUT HANDLER
+    // 🛑 AMPLIFY CONFIGURATION REMOVED 🛑
+    useEffect(() => {
+        // Log the final version stamp for debugging purposes
+        console.log(`[DEPLOYMENT] Application loaded. Stamp: ${VERSION_STAMP}`);
+    }, []); 
+
+
+    // LOGOUT HANDLER 
     const handleSignOut = useCallback(() => {
-        console.log("--- LOGOUT TRIGGERED ---"); 
-        localStorage.removeItem('id_token');
-        localStorage.removeItem('access_token'); 
-        localStorage.removeItem('refresh_token'); 
-        sessionStorage.removeItem('auth_code_pending'); 
-        sessionStorage.removeItem('exchangeAttempted'); 
+        console.log("--- LOGOUT TRIGGERED (Clean Auth) ---"); 
         
+        // This function in auth.js handles clearing local storage and redirecting.
+        logout(); // 🛑 Use the imported logout function
+        
+        // Immediate UI reset (though redirect will follow)
         setIsLoggedIn(false); 
         setUserDataChecked(false); 
         setSessionTokens({ id_token: null, access_token: null, refresh_token: null });
@@ -154,40 +97,30 @@ export default function App() {
         setUserScore(0);
         setIsAdmin(false); 
         setOnboardingData(INITIAL_ONBOARDING_DATA); 
-        setApplications([]); // Clear applications on logout
-
-        window.location.replace(`${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID_PUBLIC}&logout_uri=${window.location.origin}`);
+        setApplications([]); 
 
     }, []); 
 
-    // Helper to get the correct token
+    // Helper to get the correct token (Uses imported function)
+    // NOTE: We wrap the imported function to satisfy the useCallback dependency
     const getValidAccessToken = useCallback(async () => {
-        let accessToken = localStorage.getItem('access_token');
-        const refreshToken = localStorage.getItem('refresh_token');
-        
-        if (!accessToken) return null;
-
-        if (isTokenExpired(accessToken)) {
-            if (!refreshToken) return null; 
-            try {
-                accessToken = await refreshAccessToken(refreshToken, setSessionTokens);
-            } catch (error) {
-                return null; 
-            }
-        }
-        return accessToken;
-    }, [setSessionTokens]);
+        // 🛑 Use the imported utility function
+        return authGetValidAccessToken(); 
+    }, []); 
 
 
-    // CORE: fetchUserData (GET) 
+    // CORE: fetchUserData (GET) (Logic mostly unchanged, only token access changed)
     const fetchUserData = useCallback(async (token = null) => {
         console.log("--- fetchUserData: STARTED ---"); 
         let validToken = token;
         let isUserFound = false; 
 
         if (!validToken) validToken = await getValidAccessToken();
+        // ... (rest of the logic remains the same, just removed the dependency on 
+        // setSessionTokens and isLoggedIn from the original inner fetchUserData)
         if (!validToken) {
             console.error("fetchUserData: ABORTED. No token available."); 
+            if(!isLoggedIn) navigate('/', { replace: true });
             return { success: false, data: null };
         }
         
@@ -196,7 +129,7 @@ export default function App() {
                 method: 'GET',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${validToken}` // Secured by token
+                    'Authorization': `Bearer ${validToken}` 
                 },
                 mode: 'cors',
             });
@@ -204,9 +137,8 @@ export default function App() {
             if (response.ok) {
                 const data = await response.json();
                 
-                // Read admin status from the backend, handling string or boolean storage
                 const isAdminUser = (data.admin === true || data.Admin === true || data.admin === "true" || data.Admin === "true");
-                setIsAdmin(isAdminUser); // Update state for conditional rendering
+                setIsAdmin(isAdminUser); 
                 
                 const hasCompletedOnboarding = data.full_name && 
                                                data.full_name.trim() !== "" &&
@@ -239,9 +171,7 @@ export default function App() {
                         monthly_income: cleanValue(data.monthly_income),
                         bank_account_linked: cleanValue(data.bank_account_linked),
                         worker_id: data.user_id || '',
-                        // Load the admin status back as a boolean
                         admin: isAdminUser,
-                        // 🌟 Ensure confidence_score is saved to onboardingData for display in modal
                         confidence_score: score.toString() 
                     };
                     setOnboardingData(prev => ({ ...prev, ...loadedData }));
@@ -263,10 +193,11 @@ export default function App() {
             setIsAdmin(false);
             return { success: false, data: null };
         }
-    }, [getValidAccessToken, setOnboardingData, setAuthError, handleSignOut, setUserScore]);
+    }, [getValidAccessToken, setOnboardingData, setAuthError, handleSignOut, setUserScore, isLoggedIn, navigate]);
 
 
-    // CORE FUNCTION: exchangeCodeForTokens 
+    // CORE FUNCTION: exchangeCodeForTokens (Uses imported function)
+    // The complex token exchange logic has been moved to auth.js
     const exchangeCodeForTokens = useCallback(async (formData, authCode) => {
         if (sessionStorage.getItem('exchangeAttempted') === 'true' || !authCode) {
             console.warn("Exchange attempt blocked: already attempted or no code provided.");
@@ -276,61 +207,15 @@ export default function App() {
         sessionStorage.setItem('exchangeAttempted', 'true');
         setExchangeAttempted(true);
         
-        // 1. Determine if this is an actual data submission or just token-only exchange
-        const isDataSubmission = Object.entries(formData).some(([key, value]) => 
-            key !== 'worker_id' && (Array.isArray(value) ? value.length > 0 : (typeof value === 'string' && value.trim() !== ''))
-        );
-        
-        let requestPayload = {};
-
-        if (isDataSubmission) {
-            // Case 1: Final submission with form data (backend will save)
-            const processedFormData = { ...formData };
-            if (Array.isArray(processedFormData.gig_platform)) processedFormData.gig_platform = processedFormData.gig_platform.join(", ");
-            delete processedFormData.age;
-            delete processedFormData.worker_id;
-
-            // *** CRITICAL FIX: Convert the boolean 'admin' to a string for the Java backend ***
-            processedFormData.admin = String(processedFormData.admin || false);
-            
-            requestPayload = processedFormData;
-            console.log("Exchange: Final data submission payload (New User).");
-        } else {
-            // Case 2: Token-only exchange on redirect (NEW USER initial login).
-            // Request payload MUST BE EMPTY so backend skips saving empty data, 
-            // preventing the table from being emptied (the regression fix).
-            requestPayload = {}; 
-            console.log("Exchange: Token-only payload. Backend should skip data save.");
-        }
-
         try {
-            const requestBody = {
-                code: authCode,
-                redirect_uri: REDIRECT_URI,
-                client_id: CLIENT_ID_PUBLIC,
-                ...requestPayload, 
-            };
-            
-            console.log("--- exchangeCodeForTokens: REQUEST BODY ---", JSON.stringify(requestBody, null, 2));
+            // 🛑 Use the imported utility function
+            const tokens = await authExchangeCodeForTokens(authCode, formData);
 
-            const response = await fetch(TOKEN_EXCHANGE_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }, // NO Authorization header
-                body: JSON.stringify(requestBody),
-            });
-
-            if (!response.ok) throw new Error(`Exchange failed with status ${response.status}. Response: ${await response.text()}`);
-
-            const tokens = await response.json(); 
-            const decodedIdToken = decodeToken(tokens.id_token);
-            const workerId = decodedIdToken ? decodedIdToken.sub : null;
+            // Decode the ID token for the worker ID and immediately update state
+            const workerId = tokens.id_token ? JSON.parse(atob(tokens.id_token.split('.')[1])).sub : null;
             
             if (!workerId) throw new Error("Failed to extract unique user ID from the ID token.");
 
-            localStorage.setItem('id_token', tokens.id_token); 
-            localStorage.setItem('access_token', tokens.access_token);
-            localStorage.setItem('refresh_token', tokens.refresh_token); 
-            
             setSessionTokens({ id_token: tokens.id_token, access_token: tokens.access_token, refresh_token: tokens.refresh_token });
             setIsLoggedIn(true); 
 
@@ -353,14 +238,14 @@ export default function App() {
     }, [setAuthError, setSessionTokens, setIsLoggedIn]); 
 
     
-    // 🔑 FIXED CORE FUNCTION: handleOnboardingComplete 
+    // CORE FUNCTION: handleOnboardingComplete (Unchanged logic flow)
     const handleOnboardingComplete = useCallback(async () => {
+        // ... (rest of this function is fine, uses exchangeCodeForTokens and local API calls)
         const authCode = sessionStorage.getItem('auth_code_pending');
         
-        // 🔑 CASE 1: New User/First Submission (Use /auth/callback with code)
+        // CASE 1: New User/First Submission (Use /auth/callback with code)
         if (authCode) {
             console.log("SUBMISSION: CASE 1 - New user with pending code. Exchanging code and saving data via auth/callback.");
-            // exchangeCodeForTokens will correctly process the filled form data and convert 'admin' to string.
             const result = await exchangeCodeForTokens(onboardingData, authCode); 
             
             if (result.success) {
@@ -372,7 +257,7 @@ export default function App() {
             return;
         }
 
-        // 🔑 CASE 2: Existing User Update (Use /userdata POST with Authorization header)
+        // CASE 2: Existing User Update (Use /userdata POST with Authorization header)
         if (isLoggedIn) {
             console.log("SUBMISSION: CASE 2 - Existing user. Updating data only via /userdata POST.");
             
@@ -384,15 +269,11 @@ export default function App() {
             }
             
             try {
-                // Prepare form data for POST request
                 const processedFormData = { ...onboardingData };
                 if (Array.isArray(processedFormData.gig_platform)) processedFormData.gig_platform = processedFormData.gig_platform.join(", ");
-                delete processedFormData.age; // Remove client-only field
+                delete processedFormData.age; 
                 
-                // Explicitly ensure the current admin status is included in the update payload
                 processedFormData.admin = processedFormData.admin || false; 
-                
-                // 👇 CRITICAL FIX: Convert the boolean 'admin' to a string for the Java backend
                 processedFormData.admin = String(processedFormData.admin); 
                 
                 const finalBody = { ...processedFormData };
@@ -401,7 +282,6 @@ export default function App() {
                      delete finalBody.worker_id;
                 }
                 
-                // POST to the dedicated USER_DATA_ENDPOINT, secured by the token
                 const response = await fetch(USER_DATA_ENDPOINT, {
                     method: 'POST', 
                     headers: {
@@ -433,83 +313,39 @@ export default function App() {
     }, [onboardingData, navigate, exchangeCodeForTokens, setUserDataChecked, isLoggedIn, getValidAccessToken, handleSignOut]);
 
 
-    // AUTHENTICATION HANDLER
+    // AUTHENTICATION HANDLER 
     const handleSignIn = () => {
         setUserDataChecked(false); 
-        performCognitoRedirect(CLIENT_ID_PUBLIC, COGNITO_DOMAIN, REDIRECT_URI);
+        // 🛑 CRITICAL FIX: Direct redirect to the Cognito Hosted UI
+        window.location.href = getLoginUrl(); 
     };
 
     const openSignUpModal = handleSignIn;
     
-    // CORE useEffect: Handles Login/Redirect Flow 
+    // ... (rest of the file is unchanged)
+    
+    // Simple useEffect to check for existing token and set isLoggedIn status on load
     useEffect(() => {
         const hasTokens = !!(localStorage.getItem('access_token') && localStorage.getItem('refresh_token'));
-        const urlParams = new URLSearchParams(window.location.search);
-        const authCode = urlParams.get('code');
-        const isExchanging = sessionStorage.getItem('exchangeAttempted') === 'true'; 
-
-        const handleAuthFlow = async () => {
-            
-            // 1. User returns from Cognito with code (Flow A - IMMEDIATE EXCHANGE)
-            if (authCode && !isExchanging) {
-                console.log("FLOW A (CODE FOUND): Initiating immediate token exchange (token-only).");
-
-                // Clear the code from the URL first
-                if (window.history.replaceState) {
-                    const cleanUrl = window.location.origin + window.location.pathname;
-                    window.history.replaceState({}, '', cleanUrl);
-                }
-                
-                // Save code for potential onboarding form submission
-                sessionStorage.setItem('auth_code_pending', authCode);
-                
-                // exchangeCodeForTokens will send an empty payload and skip data save (FIXED)
-                const result = await exchangeCodeForTokens(INITIAL_ONBOARDING_DATA, authCode); 
-                
-                if (!result.success) {
-                    console.error("FLOW A: Immediate Token exchange failed. Cannot proceed.");
-                    handleSignOut(); 
-                    return;
-                }
-                
-                // Tokens are now saved, isLoggedIn is true.
-            } 
-            
-            // 2. Existing Tokens found on page load/refresh (Flow A-Sub)
-            if (hasTokens && !isLoggedIn) {
-                console.log("FLOW A-Sub: Tokens found locally, setting isLoggedIn=true.");
-                setIsLoggedIn(true);
-            }
-            
-            // 3. Logged in and user data hasn't been checked yet (Flow B - Scenarios 1 & 2)
-            if (isLoggedIn && !userDataChecked) { 
-                console.log("FLOW B: Logged in, checking user data and determining navigation.");
-                
-                setUserDataChecked(true); 
-                
-                const fetchResult = await fetchUserData(); 
-                
-                if (fetchResult.success) {
-                    // Scenario 1: Data found (Existing User)
-                    console.log("FLOW B: Data found. Navigating to Dashboard.");
-                    navigate('/dashboard', { replace: true });
-                } else {
-                    // Scenario 2: No meaningful data found (New User or Incomplete)
-                    console.log("FLOW B: No meaningful data found. Navigating to Onboarding.");
-                    if(authCode) sessionStorage.setItem('auth_code_pending', authCode); 
-                    navigate('/onboarding', { replace: true });
-                }
-            }
-        };
-        
-        if (!isExchanging) {
-            handleAuthFlow();
+        if (hasTokens && !isLoggedIn) {
+            setIsLoggedIn(true);
         }
-        
-    }, [navigate, fetchUserData, exchangeCodeForTokens, isLoggedIn, setUserDataChecked, userDataChecked, handleSignOut]); 
+    }, [isLoggedIn]);
     
+    // Simple useEffect to navigate away from /callback and /logout if needed
+    useEffect(() => {
+        const pathname = window.location.pathname;
+        if (isLoggedIn && (pathname.endsWith('/callback') || pathname.endsWith('/logout'))) {
+            navigate('/dashboard', { replace: true });
+        }
+        // If the user navigates directly to /callback without a code, redirect to home
+        if (!isLoggedIn && pathname.endsWith('/callback') && !new URLSearchParams(window.location.search).get('code')) {
+            navigate('/', { replace: true });
+        }
+    }, [isLoggedIn, navigate]);
+
     
-    // 🌟 NEW FUNCTION: Fetch the user's loan application history
+    // Fetch the user's loan application history (unchanged)
     const fetchApplicationsHistory = useCallback(async () => {
         if (!isLoggedIn) return;
         
@@ -525,14 +361,14 @@ export default function App() {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${validToken}` // Secured by token
+                    'Authorization': `Bearer ${validToken}` 
                 },
                 mode: 'cors',
             });
 
             if (response.ok) {
                 const data = await response.json();
-                setApplications(data); // Update the applications state
+                setApplications(data); 
                 console.log("Application history loaded successfully:", data.length, "items.");
             } else {
                 console.error(`Failed to fetch applications: HTTP Status ${response.status}. Response: ${await response.text()}`);
@@ -545,7 +381,7 @@ export default function App() {
     }, [isLoggedIn, getValidAccessToken]);
     
     
-    // 🌟 New useEffect: Trigger application history fetch on login
+    // Trigger application history fetch on login
     useEffect(() => {
         if (isLoggedIn) {
             fetchApplicationsHistory();
@@ -553,7 +389,7 @@ export default function App() {
     }, [isLoggedIn, fetchApplicationsHistory]);
 
 
-    // 🌟 UPDATED FUNCTION: Handle loan application submission (Save in background and return link)
+    // Handle loan application submission (unchanged)
     const handleApply = useCallback(async (offerDetails) => {
         if (!isLoggedIn) {
             alert("Please log in before applying for a loan.");
@@ -568,20 +404,14 @@ export default function App() {
         }
         
         try {
-            // Prepare the payload based on the offerDetails structure
             const applicationPayload = {
-                // Fields mapped to your Java Lambda request and DynamoDB model:
-                
-                // 🚨 CRITICAL FIX: Use 'offerDetails.title' for both the backend partner field 
-                // and the UI loan name field to ensure the name is saved correctly.
                 nbfc_partner: offerDetails.title, 
                 loan_amount: String(offerDetails.loanAmount), 
                 interest_rate: String(offerDetails.interestRate),
                 tenure_months: String(offerDetails.tenureMonths),
                 status: "Pending", 
                 
-                // Additional fields for MyApplicationsPage UI:
-                loanName: offerDetails.title, // Use title here so the card and modal can both access it.
+                loanName: offerDetails.title, 
                 requestedAmount: String(offerDetails.loanAmount),
                 date: new Date().toISOString(), 
             };
@@ -592,17 +422,15 @@ export default function App() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${validToken}` // REQUIRED: Secured by token
+                    'Authorization': `Bearer ${validToken}` 
                 },
                 body: JSON.stringify(applicationPayload),
             });
 
             if (response.ok) {
                 console.log("Loan application saved successfully. Preparing for redirect.");
-                // Refresh the application list to show the new submission
                 fetchApplicationsHistory(); 
                 
-                // 🚨 KEY CHANGE: Return success and the public link
                 return { success: true, publicLink: offerDetails.publicLink };
                 
             } else {
@@ -612,7 +440,6 @@ export default function App() {
 
         } catch (error) {
             console.error('Loan Application Error (POST):', error.message);
-            // Don't alert here, let DashboardPage handle the final message after the save attempt
             return { success: false, error: error.message };
         }
         
@@ -626,7 +453,6 @@ export default function App() {
                 <Link to="/">Dashboard</Link>
                 {isLoggedIn && <Link to="/onboarding">Onboarding</Link>}
                 {isLoggedIn && <Link to="/myapplications">My Applications</Link>}
-                {/* Conditional Rendering using isAdmin state */}
                 {isAdmin && <Link to="/admin">Admin</Link>} 
                 {isAdmin && <Link to="/partner">Partner</Link>} 
               </nav>
@@ -653,6 +479,25 @@ export default function App() {
                     <Route path="/" element={<DashboardPage onApply={handleApply} userScore={userScore} />} />
                     <Route path="/dashboard" element={<DashboardPage onApply={handleApply} userScore={userScore} />} />
                     
+                    {/* Pass core functions as props to the Callback component */}
+                    <Route 
+                        path="/callback" 
+                        element={
+                            <Callback 
+                                // 🛑 Use the imported/aliased exchangeCodeForTokens
+                                exchangeCodeForTokens={exchangeCodeForTokens} 
+                                fetchUserData={fetchUserData}
+                                handleSignOut={handleSignOut}
+                                setIsLoggedIn={setIsLoggedIn}
+                                setUserDataChecked={setUserDataChecked}
+                                // Pass state setters if Callback needs them (like setAuthError)
+                                setAuthError={setAuthError} 
+                                // Pass current onboarding data for case where form is submitted
+                                onboardingData={onboardingData}
+                            />
+                        } 
+                    />
+                    
                     <Route 
                         path="/onboarding" 
                         element={
@@ -665,20 +510,18 @@ export default function App() {
                             : <DashboardPage onApply={handleApply} userScore={userScore} />
                         } 
                     /> 
-                    {/* Pass onboardingData to MyApplicationsPage */}
                     <Route 
                         path="/myapplications" 
                         element={
                             isLoggedIn ? 
                             <MyApplicationsPage 
                                 applications={applications} 
-                                onboardingData={onboardingData} 
+                                onboardingData={onboardingData}
                             /> 
                             : <DashboardPage onApply={handleApply} userScore={userScore} />
                         } 
                     />
                     
-                    {/* Conditional Route Access */}
                     <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <DashboardPage onApply={handleApply} userScore={userScore} />} />
                     <Route path="/partner" element={isAdmin ? <PartnerPage /> : <DashboardPage onApply={handleApply} userScore={userScore} />} />
                     

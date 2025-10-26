@@ -9,18 +9,17 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^28.0.6",
+    "@rollup/plugin-commonjs": "^28.0.9",
+    "@vitejs/plugin-react": "^5.1.0",
     "vite": "^7.1.7"
   },
   "dependencies": {
-    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
-    "aws-amplify": "^6.15.7",
     "framer-motion": "^12.23.22",
     "http-proxy-middleware": "^3.0.5",
     "oidc-client-ts": "^3.3.0",
     "process": "^0.11.10",
     "react-oidc-context": "^3.3.0",
-    "react-router-dom": "^7.9.3"
+    "react-router-dom": "^7.9.4"
   },
   "browser": {
     "crypto": "crypto-browserify",

@@ -1,0 +1,46 @@
+Kamai Suraksha Deployment Information
+====================================
+Date: Thu 23 Oct 2025 18:12:22 BST
+User: kamai-suraksha-admin
+Account: 118665089165
+
+Build Configuration:
+- Build Directory: dist
+- Project: kamaisuraksha
+- Region: eu-west-2
+
+S3 Configuration:
+- Bucket Name: kamaisuraksha-frontend-1761239505
+- Website URL: http://kamaisuraksha-frontend-1761239505.s3-website.eu-west-2.amazonaws.com
+- Public ACL Success: false
+- Public Policy Success: true
+- S3 Working: true
+
+CloudFront Configuration:
+- Success: true
+- Distribution ID: E1XSXE57VVPJR7
+- CloudFront URL: https://d3j7vzoej5jb8i.cloudfront.net
+
+Cognito URLs Configured:
+- Callback URLs: 
+  * http://localhost:5173/callback
+  * http://kamaisuraksha-frontend-1761239505.s3-website.eu-west-2.amazonaws.com/callback
+  * https://d3j7vzoej5jb8i.cloudfront.net/callback
+- Logout URLs:
+  * http://localhost:5173/logout
+  * http://kamaisuraksha-frontend-1761239505.s3-website.eu-west-2.amazonaws.com/logout
+  * https://d3j7vzoej5jb8i.cloudfront.net/logout
+
+Access URLs:
+✅ S3 Website (immediate): http://kamaisuraksha-frontend-1761239505.s3-website.eu-west-2.amazonaws.com
+✅ CloudFront (15-20 min): https://d3j7vzoej5jb8i.cloudfront.net
+
+Cost Estimate:
+- S3 Storage: ~./deploy-to-aws-vite.sh.023 per GB per month
+- S3 Requests: ~./deploy-to-aws-vite.sh.0004 per 1000 requests
+- CloudFront: ~./deploy-to-aws-vite.sh.085 per GB for first 10TB
+- Total: -5 per month for typical usage
+
+Troubleshooting:
+
+
