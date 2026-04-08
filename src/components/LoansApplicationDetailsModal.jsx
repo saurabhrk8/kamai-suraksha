@@ -1,14 +1,16 @@
 import React from 'react';
 
 // --- Loans Application Details Modal Component ---
-const LoansApplicationDetailsModal = ({ application, onClose }) => {
+const LoansApplicationDetailsModal = ({ application, onClose, onApprove, onReject }) => {
     // If no application data is passed, don't render the modal
     if (!application) return null;
 
     // Helper to format currency
     const formatCurrency = (amount) => {
+        // Use Number() to handle potential string 'undefined' or null values from the data mapping
         const num = Number(amount);
-        return num > 0 ? `₹${num.toLocaleString('en-IN')}` : 'N/A';
+        // Check if num is a valid positive number
+        return isNaN(num) || num <= 0 ? 'N/A' : `₹${num.toLocaleString('en-IN')}`;
     };
 
     // Helper to format Confidence Score with appropriate color
@@ -24,6 +26,49 @@ const LoansApplicationDetailsModal = ({ application, onClose }) => {
     };
 
     const confidenceScore = application.confidenceScore || 'N/A';
+    const statusColor = {
+        'Pending': '#fb923c',
+        'Approved': '#10b981',
+        'Rejected': '#ef4444',
+    }[application.status] || '#a1a1aa'; // Default to gray
+
+    // --- Data Grouping ---
+    
+    const applicantDetails = [
+        { label: 'Full Name', value: application.name || 'N/A' },
+        { label: 'Monthly Income', value: formatCurrency(application.monthlyIncome) },
+        { label: 'Work Type', value: application.workType || 'N/A' },
+        { label: 'City', value: application.city || 'N/A' },
+        { label: 'Age', value: application.age || 'N/A' },
+        { label: 'Marital Status', value: application.maritalStatus || 'N/A' },
+        { label: 'Platform (If Gig)', value: application.platform || 'N/A' },
+        { label: 'User ID (Key)', value: application.userId || 'N/A' }, // Added userId for admin reference
+    ];
+
+    const loanDetails = [
+        { label: 'Requested Amount', value: formatCurrency(application.requestedAmount) },
+        { label: 'Interest Rate', value: (application.loanRate ? application.loanRate + '%' : 'N/A') },
+        { label: 'Tenure', value: (application.tenure ? application.tenure + ' months' : 'N/A') },
+        { label: 'Partner/Lender', value: application.nbfc_partner || 'N/A' },
+        { label: 'Applied Date', value: application.date ? new Date(application.date).toLocaleDateString() : 'N/A' },
+        { label: 'Risk Score', value: application.riskScore || 'N/A' },
+    ];
+
+
+    // --- Helper Component for Grid Section ---
+    const DetailSection = ({ title, items }) => (
+        <div className="details-section">
+            <h4>{title}</h4>
+            <div className="applicant-info-grid"> {/* Reusing the grid class */}
+                {items.map((item, index) => (
+                    <div className="detail-item" key={index}>
+                        <span className="detail-label">{item.label}</span>
+                        <span className="detail-value">{item.value}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -40,7 +85,7 @@ const LoansApplicationDetailsModal = ({ application, onClose }) => {
                     </button>
                 </div>
 
-                {/* Score and Status Header (To match UI) */}
+                {/* Score and Status Header */}
                 <div className="score-status-header">
                     <div className="score-box">
                         <span className="score-label">Confidence Score</span>
@@ -56,7 +101,7 @@ const LoansApplicationDetailsModal = ({ application, onClose }) => {
                         <span 
                             className="status-value"
                             style={{ 
-                                color: application.status === 'Pending' ? '#fb923c' : (application.status === 'Approved' ? '#10b981' : '#ef4444'),
+                                color: statusColor,
                                 fontWeight: 700 
                             }}
                         >
@@ -65,77 +110,38 @@ const LoansApplicationDetailsModal = ({ application, onClose }) => {
                     </div>
                 </div>
 
-
                 {/* Modal Body/Content */}
                 <div className="details-content">
                     
-                    {/* Loan Details Section (Primary focus for user) */}
-                    <div className="details-section">
-                        <h4>Loan & Tenure Details</h4>
-                        <div className="loan-details-grid">
-                            <div className="detail-item">
-                                <span className="detail-label">Requested Amount</span>
-                                <span className="detail-value">{formatCurrency(application.requestedAmount)}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Interest Rate</span>
-                                <span className="detail-value">{application.loanRate || 'N/A'}%</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Tenure</span>
-                                <span className="detail-value">{application.tenure || 'N/A'} months</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Applied Date</span>
-                                <span className="detail-value">{application.date ? new Date(application.date).toLocaleDateString() : 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Partner/Lender</span>
-                                <span className="detail-value">{application.nbfc_partner || 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Risk Score</span>
-                                <span className="detail-value">{application.riskScore || 'N/A'}</span>
-                            </div>
-                        </div>
-                    </div>
+                    {/* 1. APPLICANT DETAILS SECTION */}
+                    <DetailSection 
+                        title="Applicant Details" 
+                        items={applicantDetails}
+                    />
 
-                    {/* Applicant Profile Information Section */}
-                    <div className="details-section" style={{ borderBottom: 'none' }}>
-                        <h4>Applicant Profile Overview</h4>
-                        <div className="applicant-info-grid">
-                            <div className="detail-item">
-                                <span className="detail-label">Full Name</span>
-                                <span className="detail-value">{application.name || 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Monthly Income</span>
-                                <span className="detail-value">{formatCurrency(application.monthlyIncome)}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Work Type</span>
-                                <span className="detail-value">{application.workType || 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Gig Platform</span>
-                                <span className="detail-value">{application.platform || 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">City</span>
-                                <span className="detail-value">{application.city || 'N/A'}</span>
-                            </div>
-                            <div className="detail-item">
-                                <span className="detail-label">Age</span>
-                                <span className="detail-value">{application.age || 'N/A'}</span>
-                            </div>
-                        </div>
-                    </div>
+                    {/* 2. LOAN DETAILS SECTION */}
+                    <DetailSection 
+                        title="Loan & Product Details" 
+                        items={loanDetails}
+                    />
+                    
                 </div>
 
-                {/* Action Buttons (Removed: Assuming this is a user-view, not admin-action) */}
+                {/* Action Buttons: Allow decision-making in the admin view */}
                 <div className="details-modal-actions">
-                    <button className="btn-close-modal" onClick={onClose}>
-                        Close
+                    <button 
+                        className="btn-reject" 
+                        onClick={() => onReject(application.id)} 
+                        disabled={application.status !== 'Pending'}
+                    >
+                        Reject
+                    </button>
+                    <button 
+                        className="btn-approve" 
+                        onClick={() => onApprove(application.id)}
+                        disabled={application.status !== 'Pending'}
+                    >
+                        Approve
                     </button>
                 </div>
             </div>

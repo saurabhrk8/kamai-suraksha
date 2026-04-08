@@ -1,32 +1,28 @@
-// File: src/components/LogoutCleanup.jsx
+// src/components/LogoutCleanup.jsx - Complete File
 
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 
-// 🛑 WARNING: Ensure these constants are accessible or imported here!
-const COGNITO_DOMAIN = "https://eu-west-2xbm29elke.auth.eu-west-2.amazoncognito.com";
-const CLIENT_ID_PUBLIC = "nrck33p87u8mhi68nmjenk8g1";
-const REDIRECT_URI = window.location.origin;
-
+/**
+ * Component to ensure the browser lands on the dashboard after any
+ * external logout process (e.g., if Cognito redirects here).
+ */
 const LogoutCleanup = () => {
+    const navigate = useNavigate(); 
+    
     useEffect(() => {
-        console.log("LogoutCleanup: Initiating external Cognito sign-out redirect...");
+        // Force an internal redirect back to the root path
+        console.log("LogoutCleanup: Landing on cleanup route. Redirecting to Dashboard.");
         
-        // 1. Build the Cognito logout URL
-        const logoutUrl = `${COGNITO_DOMAIN}/oauth2/logout?` + new URLSearchParams({
-            client_id: CLIENT_ID_PUBLIC,
-            logout_uri: REDIRECT_URI, // Cognito will redirect *back* to your app's root
-        }).toString();
-        
-        // 2. Perform the full browser redirect
-        window.location.replace(logoutUrl);
+        // This should always push the browser back to the root path
+        // which will then trigger App.jsx/DashboardPage to render the public content.
+        navigate('/', { replace: true });
+    }, [navigate]);
 
-    }, []);
-
-    // Display a message while waiting for the redirect to happen
     return (
         <div style={{ padding: '40px', textAlign: 'center' }}>
             <h2>Signing You Out...</h2>
-            <p>Please wait while we securely log you out of your session.</p>
+            <p>You are being securely signed out and redirected to the home page.</p>
         </div>
     );
 };
